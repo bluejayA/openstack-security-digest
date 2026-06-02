@@ -220,6 +220,47 @@ func TestTestSend_WithWebhook_Sends(t *testing.T) {
 	}
 }
 
+func TestNotify_NoWebhook_400(t *testing.T) {
+	h, _, _ := testHandler(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/notify", nil)
+	rec := httptest.NewRecorder()
+	h.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestNotify_SendsLatestWeekTranslated(t *testing.T) {
+	data, _ := os.ReadFile("../../testdata/feed.xml")
+	items, _ := feed.Parse(data)
+	st, _ := store.Open(filepath.Join(t.TempDir(), "n.db"))
+	t.Cleanup(func() { st.Close() })
+	cfg := store.DefaultSettings()
+	cfg.WebhookURL = "https://hooks.slack.com/services/A/B/C"
+	st.SaveSettings(cfg)
+	sender := &fakeSender{}
+	h := New(&fakeSource{items: items}, st, sender, translate.NewService(prefixTranslator{}, st))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/notify", nil)
+	rec := httptest.NewRecorder()
+	h.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp["sent"].(float64) != 3 { // latest digest (2026-05-30) has 3 advisories
+		t.Errorf("sent = %v, want 3", resp["sent"])
+	}
+	if sender.calls != 1 {
+		t.Errorf("sender calls = %d, want 1", sender.calls)
+	}
+	dels, _ := st.ListDeliveries(10)
+	if len(dels) != 3 {
+		t.Errorf("recorded deliveries = %d, want 3", len(dels))
+	}
+}
+
 func TestDeliveries_List(t *testing.T) {
 	h, st, _ := testHandler(t)
 	st.RecordDelivery(store.Delivery{Key: "k1", Component: "Keystone", Impact: "Critical", Status: "sent"})

@@ -56,6 +56,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /api/settings", h.getSettings)
 	mux.HandleFunc("PUT /api/settings", h.putSettings)
 	mux.HandleFunc("POST /api/settings/test", h.testSend)
+	mux.HandleFunc("POST /api/notify", h.notifyLatest)
 	mux.HandleFunc("GET /api/deliveries", h.getDeliveries)
 	return withCORS(mux)
 }
@@ -273,6 +274,69 @@ func (h *Handler) testSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
+}
+
+// notifyLatest pushes the most recent digest's advisories to the configured
+// Slack webhook on demand (a manual "send this week now" trigger), translated
+// to the display language. Unlike the scheduler it ignores the threshold and
+// the delivered-dedup, so it can be used to test or re-send.
+func (h *Handler) notifyLatest(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cfg, err := h.store.GetSettings()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if cfg.WebhookURL == "" {
+		writeError(w, http.StatusBadRequest, "no webhook URL configured")
+		return
+	}
+	items, err := h.src.Items(ctx)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "fetch feed: "+err.Error())
+		return
+	}
+	if len(items) == 0 {
+		writeError(w, http.StatusNotFound, "no digests available")
+		return
+	}
+	latest := items[0]
+	advs := security.ClassifyAll(security.ExtractSecurity(latest.Content))
+	if len(advs) == 0 {
+		writeJSON(w, http.StatusOK, map[string]any{"sent": 0, "digest": latest.Title, "message": "no security advisories this week"})
+		return
+	}
+
+	// translate copies (cache-backed); keep originals for the delivery keys
+	localized := make([]security.Advisory, len(advs))
+	copy(localized, advs)
+	if h.translator != nil && h.translator.Enabled() {
+		for i := range localized {
+			localized[i].Summary = h.translator.To(ctx, localized[i].Summary, displayLang)
+		}
+	}
+
+	msg := slack.BuildMessage(latest.Title, latest.Link, localized)
+	if err := h.sender.Send(ctx, cfg.WebhookURL, msg); err != nil {
+		writeError(w, http.StatusBadGateway, "slack send failed: "+err.Error())
+		return
+	}
+
+	for _, a := range advs {
+		id := a.ID
+		if id == "" {
+			id = a.Summary
+		}
+		_ = h.store.RecordDelivery(store.Delivery{
+			Key:        latest.GUID + ":" + id,
+			DigestGUID: latest.GUID,
+			AdvisoryID: a.ID,
+			Component:  a.Component,
+			Impact:     string(a.Impact),
+			Status:     "sent",
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sent": len(advs), "digest": latest.Title})
 }
 
 func (h *Handler) getDeliveries(w http.ResponseWriter, r *http.Request) {
