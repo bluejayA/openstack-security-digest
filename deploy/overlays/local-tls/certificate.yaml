@@ -1,0 +1,14 @@
+# cert-manager issues a self-signed cert into the oss-digest-tls secret, which
+# the ingress consumes. nip.io maps 192-168-139-2.nip.io → 192.168.139.2 (the
+# ingress LoadBalancer IP) with no /etc/hosts or DNS setup.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: oss-digest-tls
+spec:
+  secretName: oss-digest-tls
+  dnsNames:
+    - 192-168-139-2.nip.io
+  issuerRef:
+    name: selfsigned
+    kind: Issuer

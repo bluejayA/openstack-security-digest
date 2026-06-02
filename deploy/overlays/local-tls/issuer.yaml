@@ -1,0 +1,8 @@
+# Local self-signed issuer. Production swaps this for an ACME (Let's Encrypt)
+# ClusterIssuer with a real, publicly-resolvable host.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}

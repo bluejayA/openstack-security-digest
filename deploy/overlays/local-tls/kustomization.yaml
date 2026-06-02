@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Local overlay with HTTPS via cert-manager (self-signed). Requires cert-manager
+# installed in the cluster. Host uses nip.io so no DNS/hosts setup is needed.
+namespace: oss-digest
+
+resources:
+  - ../../base
+  - issuer.yaml
+  - certificate.yaml
+
+images:
+  - name: oss-digest-server
+    newTag: local
+  - name: oss-digest-web
+    newTag: local
+
+patches:
+  - target:
+      kind: Ingress
+      name: oss-digest
+    path: ingress-tls-patch.yaml

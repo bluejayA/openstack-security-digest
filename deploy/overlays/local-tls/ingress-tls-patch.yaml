@@ -1,0 +1,10 @@
+# Bind the host and enable TLS on the shared ingress.
+- op: add
+  path: /spec/tls
+  value:
+    - hosts:
+        - 192-168-139-2.nip.io
+      secretName: oss-digest-tls
+- op: add
+  path: /spec/rules/0/host
+  value: 192-168-139-2.nip.io

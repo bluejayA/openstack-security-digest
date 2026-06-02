@@ -54,6 +54,35 @@ open "http://$IP/"        # 대시보드
 kubectl delete -k deploy/overlays/local
 ```
 
+## HTTPS (TLS) — `overlays/local-tls`
+
+cert-manager로 self-signed 인증서를 발급해 HTTPS를 켭니다. 호스트는 `nip.io`라
+DNS/hosts 설정이 필요 없습니다(`192-168-139-2.nip.io` → 인그레스 IP).
+
+```bash
+# 1) cert-manager 설치 (1회)
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml
+kubectl wait --for=condition=Available -n cert-manager --timeout=180s \
+  deploy/cert-manager deploy/cert-manager-webhook deploy/cert-manager-cainjector
+
+# 2) TLS 오버레이 적용
+kubectl apply -k deploy/overlays/local-tls
+kubectl wait -n oss-digest --for=condition=Ready certificate/oss-digest-tls --timeout=90s
+
+# 3) 접속 (self-signed → -k / 브라우저 경고 수락)
+curl -k https://192-168-139-2.nip.io/healthz
+open https://192-168-139-2.nip.io/
+```
+
+- HTTP는 자동으로 **308 → HTTPS** 리다이렉트됩니다(ingress-nginx ssl-redirect).
+- 인그레스 IP가 다르면 `certificate.yaml`의 dnsNames와 `ingress-tls-patch.yaml`의 호스트를 그에 맞는 `<ip-dashed>.nip.io`로 바꾸세요.
+- **인증서 키는 cert-manager가 생성**하므로 리포에 저장되지 않습니다.
+
+### 프로덕션 TLS
+`overlays/prod/`에서 self-signed `Issuer`를 **ACME(Let's Encrypt) `ClusterIssuer`**로,
+호스트를 **실제 공개 도메인**으로 바꾸면 신뢰된 인증서가 자동 발급·갱신됩니다.
+(공인 DNS가 인그레스로 향해야 하며, HTTP-01 또는 DNS-01 챌린지 필요)
+
 ## 프로덕션으로 갈 때 (overlay 추가)
 
 `deploy/overlays/prod/`를 만들어 다음을 패치하세요.
