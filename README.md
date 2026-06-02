@@ -1,5 +1,12 @@
 # OpenStack Security Digest
 
+[![CI / server](https://github.com/bluejayA/openstack-security-digest/actions/workflows/ci-server.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/ci-server.yml)
+[![CI / web](https://github.com/bluejayA/openstack-security-digest/actions/workflows/ci-web.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/ci-web.yml)
+[![Security](https://github.com/bluejayA/openstack-security-digest/actions/workflows/security.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/security.yml)
+[![CodeQL](https://github.com/bluejayA/openstack-security-digest/actions/workflows/codeql.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/codeql.yml)
+[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](server/go.mod)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=next.js)](web/package.json)
+
 > OpenStack 메일링리스트의 주간 보안 공지를 **자동으로 필터링·영향도 분류**하고,
 > **Slack으로 푸시**하며, **대시보드**로 보여주는 서비스.
 
