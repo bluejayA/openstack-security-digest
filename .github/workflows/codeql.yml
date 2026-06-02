@@ -21,17 +21,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Go has no "none" build mode; build it manually (module lives in server/).
           - language: go
-            build-mode: none
+            build-mode: manual
           - language: javascript-typescript
             build-mode: none
     steps:
       - uses: actions/checkout@v6
+
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: server/go.sum
+
       - uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended
+
+      # Manual build so CodeQL can trace the Go sources in the monorepo subdir.
+      - if: matrix.language == 'go'
+        working-directory: server
+        run: go build ./...
+
       - uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
