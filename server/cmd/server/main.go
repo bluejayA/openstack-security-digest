@@ -18,7 +18,12 @@ import (
 	"github.com/jayahn/openstack-security-digest/server/internal/scheduler"
 	"github.com/jayahn/openstack-security-digest/server/internal/slack"
 	"github.com/jayahn/openstack-security-digest/server/internal/store"
+	"github.com/jayahn/openstack-security-digest/server/internal/translate"
 )
+
+// defaultTranslateModel is the Claude model used for translation when not
+// overridden via TRANSLATE_MODEL.
+const defaultTranslateModel = "claude-haiku-4-5-20251001"
 
 func main() {
 	addr := env("ADDR", ":8080")
@@ -39,8 +44,19 @@ func main() {
 	fetcher := feed.NewFetcher(feedURL, cacheTTL)
 	notifier := slack.New()
 
-	handler := api.New(fetcher, st, notifier)
-	sched := scheduler.New(fetcher, st, notifier)
+	// Translation is optional: with no API key, summaries stay in English.
+	var translator *translate.Service
+	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+		model := env("TRANSLATE_MODEL", defaultTranslateModel)
+		translator = translate.NewService(translate.NewClaudeTranslator(key, model), st)
+		log.Printf("translation enabled (model=%s)", model)
+	} else {
+		translator = translate.NewService(nil, st)
+		log.Println("translation disabled (ANTHROPIC_API_KEY not set) — summaries stay in English")
+	}
+
+	handler := api.New(fetcher, st, notifier, translator)
+	sched := scheduler.New(fetcher, st, notifier, translator)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

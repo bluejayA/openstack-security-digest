@@ -68,6 +68,12 @@ CREATE TABLE IF NOT EXISTS slack_deliveries (
 	status       TEXT NOT NULL,
 	error        TEXT
 );
+CREATE TABLE IF NOT EXISTS translations (
+	hash TEXT NOT NULL,
+	lang TEXT NOT NULL,
+	text TEXT NOT NULL,
+	PRIMARY KEY (hash, lang)
+);
 `
 
 // Open opens (creating if needed) the SQLite database at path and applies the
@@ -183,6 +189,29 @@ func (s *Store) RecordDelivery(d Delivery) error {
 		d.SentAt.UTC().Format(time.RFC3339), d.Status, d.Error)
 	if err != nil {
 		return fmt.Errorf("store: record delivery: %w", err)
+	}
+	return nil
+}
+
+// GetTranslation returns a cached translation for (hash, lang) if present.
+func (s *Store) GetTranslation(hash, lang string) (string, bool) {
+	var text string
+	err := s.db.QueryRow(
+		`SELECT text FROM translations WHERE hash = ? AND lang = ?`, hash, lang).Scan(&text)
+	if err != nil {
+		return "", false
+	}
+	return text, true
+}
+
+// SaveTranslation upserts a cached translation keyed by (hash, lang).
+func (s *Store) SaveTranslation(hash, lang, text string) error {
+	_, err := s.db.Exec(
+		`INSERT INTO translations (hash, lang, text) VALUES (?, ?, ?)
+		 ON CONFLICT(hash, lang) DO UPDATE SET text = excluded.text`,
+		hash, lang, text)
+	if err != nil {
+		return fmt.Errorf("store: save translation: %w", err)
 	}
 	return nil
 }

@@ -11,7 +11,8 @@ export interface Advisory {
   component: string;
   cves: string[] | null;
   affected: string[] | null;
-  summary: string;
+  summary: string; // display language (Korean when translation is enabled)
+  summaryEn?: string; // original English text
   link: string;
   impact: Impact;
   // enrichment from the API

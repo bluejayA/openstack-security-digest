@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/jayahn/openstack-security-digest/server/internal/feed"
 	"github.com/jayahn/openstack-security-digest/server/internal/slack"
 	"github.com/jayahn/openstack-security-digest/server/internal/store"
+	"github.com/jayahn/openstack-security-digest/server/internal/translate"
 )
 
 func readFixture(t *testing.T) []byte {
@@ -84,7 +86,7 @@ func TestRunOnce_ColdStartIsBaseline_NoSends(t *testing.T) {
 	enabledSettings(st, "High")
 	src := &fakeSource{items: loadRealItems(t)}
 	sender := &fakeSender{}
-	svc := New(src, st, sender)
+	svc := New(src, st, sender, translate.NewService(nil, st))
 
 	res, err := svc.RunOnce(context.Background())
 	if err != nil {
@@ -110,7 +112,7 @@ func TestRunOnce_NotifiesNewDigest(t *testing.T) {
 	// baseline with everything EXCEPT the newest (2026-05-30, which has Critical+High)
 	src := &fakeSource{items: real[1:]}
 	sender := &fakeSender{}
-	svc := New(src, st, sender)
+	svc := New(src, st, sender, translate.NewService(nil, st))
 	if _, err := svc.RunOnce(context.Background()); err != nil {
 		t.Fatalf("baseline: %v", err)
 	}
@@ -144,7 +146,7 @@ func TestRunOnce_DedupOnRepeat(t *testing.T) {
 	real := loadRealItems(t)
 	src := &fakeSource{items: real[1:]}
 	sender := &fakeSender{}
-	svc := New(src, st, sender)
+	svc := New(src, st, sender, translate.NewService(nil, st))
 	svc.RunOnce(context.Background()) // baseline
 
 	src.items = real
@@ -162,7 +164,7 @@ func TestRunOnce_DisabledSendsNothing(t *testing.T) {
 	// settings left disabled (default)
 	src := &fakeSource{items: loadRealItems(t)}
 	sender := &fakeSender{}
-	svc := New(src, st, sender)
+	svc := New(src, st, sender, translate.NewService(nil, st))
 
 	res, err := svc.RunOnce(context.Background())
 	if err != nil {
@@ -182,7 +184,7 @@ func TestRunOnce_FailedSendNotMarkedSeen(t *testing.T) {
 	real := loadRealItems(t)
 	src := &fakeSource{items: real[1:]}
 	sender := &fakeSender{}
-	svc := New(src, st, sender)
+	svc := New(src, st, sender, translate.NewService(nil, st))
 	svc.RunOnce(context.Background()) // baseline (sender ok)
 
 	sender.fail = true
@@ -202,7 +204,7 @@ func TestRunOnce_RetriesAfterTransientFailure(t *testing.T) {
 	real := loadRealItems(t)
 	src := &fakeSource{items: real[1:]}
 	sender := &fakeSender{}
-	svc := New(src, st, sender)
+	svc := New(src, st, sender, translate.NewService(nil, st))
 	svc.RunOnce(context.Background()) // baseline
 
 	// transient failure on the new digest
@@ -228,6 +230,42 @@ func TestRunOnce_RetriesAfterTransientFailure(t *testing.T) {
 	}
 }
 
+type koTranslator struct{}
+
+func (koTranslator) Translate(_ context.Context, text, lang string) (string, error) {
+	return "[" + lang + "] " + text, nil
+}
+
+func TestRunOnce_PushesTranslatedSlack(t *testing.T) {
+	st := newStore(t)
+	enabledSettings(st, "High")
+	real := loadRealItems(t)
+	src := &fakeSource{items: real[1:]}
+	sender := &fakeSender{}
+	svc := New(src, st, sender, translate.NewService(koTranslator{}, st))
+	svc.RunOnce(context.Background()) // baseline
+
+	src.items = real
+	if _, err := svc.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+	if len(sender.calls) != 1 {
+		t.Fatalf("want 1 message, got %d", len(sender.calls))
+	}
+	// the Slack message body must contain the translated (Korean-prefixed) text
+	found := false
+	for _, att := range sender.calls[0].Attachments {
+		for _, b := range att.Blocks {
+			if b.Text != nil && strings.Contains(b.Text.Text, "[ko] ") {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("Slack message was not translated to the display language")
+	}
+}
+
 func TestThresholdFilter_MediumExcludedAtHigh(t *testing.T) {
 	st := newStore(t)
 	enabledSettings(st, "High")
@@ -241,7 +279,7 @@ func TestThresholdFilter_MediumExcludedAtHigh(t *testing.T) {
 	}
 	src := &fakeSource{items: []feed.Item{mediumOnly}}
 	sender := &fakeSender{}
-	svc := New(src, st, sender)
+	svc := New(src, st, sender, translate.NewService(nil, st))
 	svc.RunOnce(context.Background()) // baseline marks it seen, no send
 
 	// force re-evaluation: a brand new store, pre-seed baseline differently
@@ -249,7 +287,7 @@ func TestThresholdFilter_MediumExcludedAtHigh(t *testing.T) {
 	enabledSettings(st2, "High")
 	// baseline with a dummy so cold-start isn't triggered
 	st2.MarkDigestSeen("dummy", time.Now().UTC())
-	svc2 := New(src, st2, sender)
+	svc2 := New(src, st2, sender, translate.NewService(nil, st2))
 	if _, err := svc2.RunOnce(context.Background()); err != nil {
 		t.Fatalf("RunOnce: %v", err)
 	}

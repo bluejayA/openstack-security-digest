@@ -12,7 +12,11 @@ import (
 	"github.com/jayahn/openstack-security-digest/server/internal/security"
 	"github.com/jayahn/openstack-security-digest/server/internal/slack"
 	"github.com/jayahn/openstack-security-digest/server/internal/store"
+	"github.com/jayahn/openstack-security-digest/server/internal/translate"
 )
+
+// displayLang is the language advisories are pre-translated and pushed in.
+const displayLang = "ko"
 
 // Source supplies the current feed items (newest first).
 type Source interface {
@@ -24,16 +28,18 @@ type Sender interface {
 	Send(ctx context.Context, webhookURL string, msg slack.Message) error
 }
 
-// Service ties together the feed source, persistence, and Slack delivery.
+// Service ties together the feed source, persistence, Slack delivery, and
+// translation.
 type Service struct {
-	src    Source
-	store  *store.Store
-	sender Sender
+	src        Source
+	store      *store.Store
+	sender     Sender
+	translator *translate.Service
 }
 
 // New constructs a scheduler Service.
-func New(src Source, st *store.Store, sender Sender) *Service {
-	return &Service{src: src, store: st, sender: sender}
+func New(src Source, st *store.Store, sender Sender, translator *translate.Service) *Service {
+	return &Service{src: src, store: st, sender: sender, translator: translator}
 }
 
 // Result summarizes a single poll cycle.
@@ -86,6 +92,11 @@ func (s *Service) RunOnce(ctx context.Context) (Result, error) {
 		res.NewDigests++
 
 		advs := security.ClassifyAll(security.ExtractSecurity(it.Content))
+
+		// Pre-translate every advisory of the new digest so the dashboard renders
+		// instantly in the display language (warms the translation cache).
+		s.pretranslate(ctx, advs)
+
 		notable := s.notableUndelivered(it, advs, threshold)
 
 		if len(notable) == 0 {
@@ -96,7 +107,9 @@ func (s *Service) RunOnce(ctx context.Context) (Result, error) {
 			continue
 		}
 
-		msg := slack.BuildMessage(it.Title, it.Link, notable)
+		// Push to Slack in the display language (delivery keys stay tied to the
+		// original advisory IDs, so dedup is unaffected).
+		msg := slack.BuildMessage(it.Title, it.Link, s.localized(ctx, notable))
 		if err := s.sender.Send(ctx, cfg.WebhookURL, msg); err != nil {
 			// record failed deliveries and leave the digest unseen for retry
 			for _, a := range notable {
@@ -118,6 +131,30 @@ func (s *Service) RunOnce(ctx context.Context) (Result, error) {
 	}
 
 	return res, nil
+}
+
+// pretranslate warms the translation cache for every advisory summary.
+func (s *Service) pretranslate(ctx context.Context, advs []security.Advisory) {
+	if s.translator == nil || !s.translator.Enabled() {
+		return
+	}
+	for i := range advs {
+		_ = s.translator.To(ctx, advs[i].Summary, displayLang)
+	}
+}
+
+// localized returns copies of the advisories with summaries translated to the
+// display language (cache-backed). Returns the originals when disabled.
+func (s *Service) localized(ctx context.Context, advs []security.Advisory) []security.Advisory {
+	if s.translator == nil || !s.translator.Enabled() {
+		return advs
+	}
+	out := make([]security.Advisory, len(advs))
+	copy(out, advs)
+	for i := range out {
+		out[i].Summary = s.translator.To(ctx, out[i].Summary, displayLang)
+	}
+	return out
 }
 
 // notableUndelivered returns advisories at/above the threshold that have not

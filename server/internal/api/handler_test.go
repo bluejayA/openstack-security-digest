@@ -13,7 +13,15 @@ import (
 	"github.com/jayahn/openstack-security-digest/server/internal/feed"
 	"github.com/jayahn/openstack-security-digest/server/internal/slack"
 	"github.com/jayahn/openstack-security-digest/server/internal/store"
+	"github.com/jayahn/openstack-security-digest/server/internal/translate"
 )
+
+// prefixTranslator returns "[lang] " + text — enough to assert translation ran.
+type prefixTranslator struct{}
+
+func (prefixTranslator) Translate(_ context.Context, text, lang string) (string, error) {
+	return "[" + lang + "] " + text, nil
+}
 
 type fakeSource struct{ items []feed.Item }
 
@@ -54,7 +62,8 @@ func testHandler(t *testing.T) (*Handler, *store.Store, *fakeSender) {
 	}
 	t.Cleanup(func() { st.Close() })
 	sender := &fakeSender{}
-	h := New(&fakeSource{items: items}, st, sender)
+	// Translation disabled by default so existing assertions see English text.
+	h := New(&fakeSource{items: items}, st, sender, translate.NewService(nil, st))
 	return h, st, sender
 }
 
@@ -97,6 +106,24 @@ func TestSecurity_DefaultWeek_GroupsByImpact(t *testing.T) {
 	}
 	if resp.Groups["Critical"][0].ID != "OSSA-2026-015" {
 		t.Errorf("unexpected critical advisory: %s", resp.Groups["Critical"][0].ID)
+	}
+}
+
+func TestSecurity_TranslatesSummaryWhenEnabled(t *testing.T) {
+	data, _ := os.ReadFile("../../testdata/feed.xml")
+	items, _ := feed.Parse(data)
+	st, _ := store.Open(filepath.Join(t.TempDir(), "tr.db"))
+	t.Cleanup(func() { st.Close() })
+	h := New(&fakeSource{items: items}, st, &fakeSender{},
+		translate.NewService(prefixTranslator{}, st))
+
+	resp := mustSecurity(t, h, "/api/security?weeks=1")
+	a := resp.Groups["Critical"][0]
+	if !strings.HasPrefix(a.Summary, "[ko] ") {
+		t.Errorf("summary not translated: %q", a.Summary)
+	}
+	if strings.HasPrefix(a.SummaryEn, "[ko] ") || a.SummaryEn == "" {
+		t.Errorf("summaryEn should keep the original English: %q", a.SummaryEn)
 	}
 }
 

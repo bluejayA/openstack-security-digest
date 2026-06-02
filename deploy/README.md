@@ -63,6 +63,20 @@ kubectl delete -k deploy/overlays/local
 - **백업** — `server-data` PVC(설정·전송 이력 포함)를 정기 백업.
 - **HA가 필요하면** — SQLite를 외부 DB(예: Postgres)로 교체하고 스케줄러에 리더 선출을 도입해야 다중 복제본이 가능합니다. (현재 구조는 단일 복제본 전제)
 
+## 한국어 번역 (선택)
+
+공지 본문을 한국어로 표시·푸시하려면 Claude API 키를 Secret으로 넣습니다(없으면 영문 그대로 동작).
+
+```bash
+kubectl -n oss-digest create secret generic oss-digest-secrets \
+  --from-literal=anthropic-api-key=sk-ant-...
+kubectl -n oss-digest rollout restart deploy/server
+```
+
+- 모델 기본값 `claude-haiku-4-5-20251001` (env `TRANSLATE_MODEL`로 변경 가능).
+- 번역은 `translations` 테이블에 **콘텐츠 해시 기준으로 캐시**되어 재번역 비용이 없습니다.
+- 신규 다이제스트는 스케줄러가 **사전 번역**하고 **Slack도 한국어**로 발송합니다.
+
 ## 운영 메모
 
 - Slack webhook URL은 대시보드 **Settings**에서 입력 → PVC의 SQLite에 저장됩니다. 별도 Secret 불필요하지만, **PVC는 민감 데이터**(webhook + 이력)이므로 접근 통제 대상입니다.

@@ -8,13 +8,21 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jayahn/openstack-security-digest/server/internal/feed"
 	"github.com/jayahn/openstack-security-digest/server/internal/security"
 	"github.com/jayahn/openstack-security-digest/server/internal/slack"
 	"github.com/jayahn/openstack-security-digest/server/internal/store"
+	"github.com/jayahn/openstack-security-digest/server/internal/translate"
 )
+
+// displayLang is the language advisory summaries are rendered in.
+const displayLang = "ko"
+
+// translateConcurrency bounds simultaneous translation calls per request.
+const translateConcurrency = 6
 
 // Source supplies feed items (newest first).
 type Source interface {
@@ -28,14 +36,15 @@ type Sender interface {
 
 // Handler holds the dependencies for the REST API.
 type Handler struct {
-	src    Source
-	store  *store.Store
-	sender Sender
+	src        Source
+	store      *store.Store
+	sender     Sender
+	translator *translate.Service
 }
 
 // New constructs an API Handler.
-func New(src Source, st *store.Store, sender Sender) *Handler {
-	return &Handler{src: src, store: st, sender: sender}
+func New(src Source, st *store.Store, sender Sender, translator *translate.Service) *Handler {
+	return &Handler{src: src, store: st, sender: sender, translator: translator}
 }
 
 // Routes returns the HTTP handler with all routes registered (CORS-enabled for
@@ -53,9 +62,12 @@ func (h *Handler) Routes() http.Handler {
 
 // --- response types ---
 
-// APIAdvisory is an advisory enriched with its source digest metadata.
+// APIAdvisory is an advisory enriched with its source digest metadata. The
+// embedded Summary is rendered in the display language; SummaryEn keeps the
+// original English text.
 type APIAdvisory struct {
 	security.Advisory
+	SummaryEn   string `json:"summaryEn"`
 	DigestTitle string `json:"digestTitle"`
 	DigestLink  string `json:"digestLink"`
 	DigestDate  string `json:"digestDate"`
@@ -140,6 +152,8 @@ func (h *Handler) getSecurity(w http.ResponseWriter, r *http.Request) {
 		Digests:     []DigestSummary{},
 	}
 
+	// First pass: flatten advisories (preserving order) and build the timeline.
+	var flat []*APIAdvisory
 	for _, it := range window {
 		advs := security.ClassifyAll(security.ExtractSecurity(it.Content))
 		ds := DigestSummary{
@@ -149,8 +163,9 @@ func (h *Handler) getSecurity(w http.ResponseWriter, r *http.Request) {
 			Count: len(advs),
 		}
 		for _, a := range advs {
-			resp.Groups[a.Impact] = append(resp.Groups[a.Impact], APIAdvisory{
+			flat = append(flat, &APIAdvisory{
 				Advisory:    a,
+				SummaryEn:   a.Summary,
 				DigestTitle: it.Title,
 				DigestLink:  it.Link,
 				DigestDate:  it.PubDate.Format("2006-01-02"),
@@ -164,7 +179,35 @@ func (h *Handler) getSecurity(w http.ResponseWriter, r *http.Request) {
 		resp.Digests = append(resp.Digests, ds)
 	}
 
+	// Translate summaries to the display language (cached, bounded concurrency).
+	h.translateSummaries(r.Context(), flat)
+
+	// Second pass: group by impact (insertion order preserved).
+	for _, a := range flat {
+		resp.Groups[a.Impact] = append(resp.Groups[a.Impact], *a)
+	}
+
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// translateSummaries fills each advisory's Summary with the display-language
+// translation (concurrently, bounded). No-op when translation is disabled.
+func (h *Handler) translateSummaries(ctx context.Context, advs []*APIAdvisory) {
+	if h.translator == nil || !h.translator.Enabled() || len(advs) == 0 {
+		return
+	}
+	sem := make(chan struct{}, translateConcurrency)
+	var wg sync.WaitGroup
+	for _, a := range advs {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(a *APIAdvisory) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			a.Summary = h.translator.To(ctx, a.SummaryEn, displayLang)
+		}(a)
+	}
+	wg.Wait()
 }
 
 func (h *Handler) getSettings(w http.ResponseWriter, _ *http.Request) {

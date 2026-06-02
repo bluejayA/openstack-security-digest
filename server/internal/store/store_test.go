@@ -74,6 +74,32 @@ func TestDigests_SeenTracking(t *testing.T) {
 	}
 }
 
+func TestTranslations_GetSet(t *testing.T) {
+	s := newTestStore(t)
+
+	if _, ok := s.GetTranslation("hash1", "ko"); ok {
+		t.Fatal("expected miss before set")
+	}
+	if err := s.SaveTranslation("hash1", "ko", "번역문"); err != nil {
+		t.Fatalf("SaveTranslation: %v", err)
+	}
+	got, ok := s.GetTranslation("hash1", "ko")
+	if !ok || got != "번역문" {
+		t.Fatalf("GetTranslation = %q, %v", got, ok)
+	}
+	// language is part of the key
+	if _, ok := s.GetTranslation("hash1", "ja"); ok {
+		t.Error("different lang should miss")
+	}
+	// upsert is idempotent
+	if err := s.SaveTranslation("hash1", "ko", "번역문2"); err != nil {
+		t.Fatalf("re-save: %v", err)
+	}
+	if got, _ := s.GetTranslation("hash1", "ko"); got != "번역문2" {
+		t.Errorf("expected updated value, got %q", got)
+	}
+}
+
 func TestHasDelivered_OnlyCountsSent(t *testing.T) {
 	s := newTestStore(t)
 	key := "guid1:OSSA-2026-099"

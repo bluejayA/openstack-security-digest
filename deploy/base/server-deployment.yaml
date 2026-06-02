@@ -40,6 +40,16 @@ spec:
               value: /data/digest.db
             - name: FEED_URL
               value: https://stackers.network/feed.xml
+            # Optional: enables Korean translation. Without the secret the app
+            # still runs and shows English. Create it with:
+            #   kubectl -n oss-digest create secret generic oss-digest-secrets \
+            #     --from-literal=anthropic-api-key=sk-...
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: oss-digest-secrets
+                  key: anthropic-api-key
+                  optional: true
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
