@@ -235,6 +235,23 @@ cd web && npm run lint && npm run build
 
 ---
 
+## Kubernetes 배포
+
+server + web을 단일 인그레스(`/api`·`/healthz` → server, `/` → web) 뒤에 배포합니다.
+SQLite + 스케줄러 싱글톤 제약 때문에 **server는 단일 복제본 + PVC + `Recreate`** 전략입니다.
+
+```bash
+docker build -f server/Dockerfile -t oss-digest-server:local server/
+docker build -f web/Dockerfile    -t oss-digest-web:local    web/
+kubectl apply -k deploy/overlays/local
+```
+
+매니페스트·아키텍처 결정·프로덕션 전환 가이드는 [`deploy/README.md`](deploy/README.md) 참고.
+버전 태그(`v*`) push 시 [`release-images.yml`](.github/workflows/release-images.yml)이
+멀티아키텍처 이미지를 GHCR에 빌드·푸시합니다.
+
+---
+
 ## 라이선스
 
 [MIT](LICENSE) © 2026 Jay Ahn

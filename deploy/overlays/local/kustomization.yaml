@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Local (OrbStack / kind / minikube) overlay.
+# Images are built locally and used directly (OrbStack shares the Docker image
+# store), so no registry pull is needed — the base already sets
+# imagePullPolicy: IfNotPresent against the :local tags.
+resources:
+  - ../../base
+
+images:
+  - name: oss-digest-server
+    newTag: local
+  - name: oss-digest-web
+    newTag: local
