@@ -46,8 +46,11 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=high
 
-  # Secret scan across the full git history.
+  # Secret scan across the full git history. Skipped for Dependabot PRs, whose
+  # read-only token can't satisfy the action's API calls (and which never
+  # introduce secrets anyway).
   gitleaks:
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
