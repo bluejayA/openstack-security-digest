@@ -19,7 +19,7 @@ jobs:
         working-directory: server
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           # Latest stable toolchain → security-patched standard library.
           go-version: stable
