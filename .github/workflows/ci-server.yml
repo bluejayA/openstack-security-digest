@@ -22,7 +22,7 @@ jobs:
         working-directory: server
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           # Build with the latest stable toolchain so the standard library is
           # security-patched (govulncheck reports stdlib CVEs otherwise).
