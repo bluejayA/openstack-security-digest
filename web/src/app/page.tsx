@@ -2,9 +2,11 @@
 
 import { useCallback, useState } from "react";
 import useSWR from "swr";
+import { toast } from "sonner";
 import {
   getSecurity,
   getDeliveries,
+  notifyNow,
   type SecurityResponse,
   type Delivery,
 } from "@/lib/api";
@@ -64,6 +66,24 @@ export default function DashboardPage() {
     if (v) setWeeks(v);
   }, []);
 
+  const [sending, setSending] = useState(false);
+  const onSendSlack = useCallback(async () => {
+    setSending(true);
+    try {
+      const r = await notifyNow();
+      if (r.sent > 0) {
+        toast.success(`Slack으로 ${r.sent}건 전송했습니다`);
+      } else {
+        toast.info(r.message ?? "전송할 공지가 없습니다");
+      }
+      mutate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "전송 실패");
+    } finally {
+      setSending(false);
+    }
+  }, [mutate]);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -91,6 +111,9 @@ export default function DashboardPage() {
           </Select>
           <Button variant="outline" onClick={refresh} disabled={isValidating}>
             {isValidating ? "Refreshing…" : "Refresh"}
+          </Button>
+          <Button onClick={onSendSlack} disabled={sending}>
+            {sending ? "전송 중…" : "지금 Slack 전송"}
           </Button>
         </div>
       </div>

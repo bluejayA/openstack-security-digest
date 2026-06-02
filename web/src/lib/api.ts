@@ -103,6 +103,14 @@ export function testSend(): Promise<{ status: string }> {
   return req<{ status: string }>("/api/settings/test", { method: "POST" });
 }
 
+export function notifyNow(): Promise<{
+  sent: number;
+  digest?: string;
+  message?: string;
+}> {
+  return req("/api/notify", { method: "POST" });
+}
+
 export function getDeliveries(limit = 50): Promise<Delivery[]> {
   return req<Delivery[]>(`/api/deliveries?limit=${limit}`);
 }
