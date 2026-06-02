@@ -4,8 +4,10 @@
 [![CI / web](https://github.com/bluejayA/openstack-security-digest/actions/workflows/ci-web.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/ci-web.yml)
 [![Security](https://github.com/bluejayA/openstack-security-digest/actions/workflows/security.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/security.yml)
 [![CodeQL](https://github.com/bluejayA/openstack-security-digest/actions/workflows/codeql.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/codeql.yml)
+[![Dependency Review](https://github.com/bluejayA/openstack-security-digest/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/dependency-review.yml)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](server/go.mod)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=next.js)](web/package.json)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > OpenStack 메일링리스트의 주간 보안 공지를 **자동으로 필터링·영향도 분류**하고,
 > **Slack으로 푸시**하며, **대시보드**로 보여주는 서비스.
@@ -230,3 +232,9 @@ cd web && npm run lint && npm run build
 ```
 
 테스트는 `server/testdata/feed.xml`(실제 피드 스냅샷)을 사용해 네트워크 없이 결정적으로 실행됩니다.
+
+---
+
+## 라이선스
+
+[MIT](LICENSE) © 2026 Jay Ahn
