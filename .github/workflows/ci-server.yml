@@ -1,0 +1,43 @@
+name: CI / server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/ci-server.yml"
+  pull_request:
+    paths:
+      - "server/**"
+      - ".github/workflows/ci-server.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # Build with the latest stable toolchain so the standard library is
+          # security-patched (govulncheck reports stdlib CVEs otherwise).
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: server/go.sum
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"; echo "$unformatted"; exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: build
+        run: go build ./...
+      - name: test
+        run: go test ./...

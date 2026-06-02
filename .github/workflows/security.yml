@@ -21,7 +21,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: server/go.mod
+          # Latest stable toolchain → security-patched standard library.
+          go-version: stable
+          check-latest: true
           cache-dependency-path: server/go.sum
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
