@@ -1,0 +1,39 @@
+# --- Secrets (CLAUDE.md security policy: never commit) ---
+.env
+.env.*
+*secret*
+*credential*
+*token*
+*.pem
+*.key
+*.p12
+*.pfx
+session_*
+client_secret_*.json
+credentials.json
+token.json
+
+# --- Go ---
+/server/bin/
+*.test
+*.out
+/server/data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# --- Node / Next.js ---
+node_modules/
+/web/.next/
+/web/out/
+/web/build/
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Editor ---
+.idea/
+.vscode/
+*.swp
