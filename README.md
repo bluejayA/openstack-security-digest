@@ -5,6 +5,7 @@
 [![Security](https://github.com/bluejayA/openstack-security-digest/actions/workflows/security.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/security.yml)
 [![CodeQL](https://github.com/bluejayA/openstack-security-digest/actions/workflows/codeql.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/codeql.yml)
 [![Dependency Review](https://github.com/bluejayA/openstack-security-digest/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/dependency-review.yml)
+[![coverage](./.github/badges/coverage.svg)](https://github.com/bluejayA/openstack-security-digest/actions/workflows/ci-server.yml)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](server/go.mod)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=next.js)](web/package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)

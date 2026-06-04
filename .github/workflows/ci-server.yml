@@ -17,6 +17,10 @@ permissions:
 jobs:
   server:
     runs-on: ubuntu-latest
+    # contents: write lets the main-branch run commit the regenerated coverage
+    # badge SVG back to the repo (self-hosted, no external badge service).
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: server
@@ -39,11 +43,48 @@ jobs:
         run: go vet ./...
       - name: build
         run: go build ./...
-      - name: test (race detector)
+      - name: test (race detector + coverage)
         # -race needs cgo; bump the timeout since the detector slows tests ~5-10x.
         env:
           CGO_ENABLED: "1"
-        run: go test -race -timeout 5m ./...
+        run: go test -race -covermode=atomic -coverprofile=coverage.out -timeout 5m ./...
+      - name: coverage report + gate
+        run: |
+          # cmd/server is process wiring with no unit tests; exclude it so the
+          # reported number reflects the testable packages (else main drags it down).
+          grep -v '/cmd/server/' coverage.out > coverage.internal.out
+          pct="$(go tool cover -func=coverage.internal.out | awk '/^total:/{sub(/%/,"",$NF); print $NF}')"
+          echo "COVERAGE_PCT=$pct" >> "$GITHUB_ENV"
+          go tool cover -html=coverage.internal.out -o coverage.html
+          {
+            echo "## Coverage: ${pct}% (excl. cmd/server)"
+            echo '```'
+            go tool cover -func=coverage.internal.out
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Gate: conservative floor — only trips on a genuine regression.
+          min=70
+          awk -v c="$pct" -v m="$min" 'BEGIN{ if (c+0 < m+0) { printf("coverage %s%% is below the %s%% floor\n", c, m); exit 1 } print "coverage "c"% >= "m"% floor" }'
+      - name: upload HTML coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: server/coverage.html
+          if-no-files-found: error
+      - name: update coverage badge (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: ${{ github.workspace }}
+        run: |
+          bash .github/scripts/coverage-badge.sh "$COVERAGE_PCT" .github/badges/coverage.svg
+          if git diff --quiet -- .github/badges/coverage.svg; then
+            echo "coverage badge unchanged (${COVERAGE_PCT}%)"
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/badges/coverage.svg
+            git commit -m "chore: update coverage badge to ${COVERAGE_PCT}% [skip ci]"
+            git push origin HEAD:main
+          fi
 
   lint:
     runs-on: ubuntu-latest
