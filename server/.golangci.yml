@@ -1,0 +1,14 @@
+version: "2"
+
+# The "standard" set is exactly the linters this project wants:
+# errcheck, govet, ineffassign, staticcheck, unused.
+linters:
+  default: standard
+  exclusions:
+    rules:
+      # errcheck in tests is noise: fake-server w.Write, json.Unmarshal before
+      # asserting on the struct, setup-only RunOnce, t.Cleanup Close — none of
+      # these errors are actionable. Production code stays strict.
+      - path: _test\.go
+        linters:
+          - errcheck

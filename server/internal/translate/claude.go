@@ -101,7 +101,7 @@ func (c *ClaudeTranslator) Translate(ctx context.Context, text, lang string) (st
 	if err != nil {
 		return "", fmt.Errorf("translate: call: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
