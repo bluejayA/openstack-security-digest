@@ -85,7 +85,7 @@ func Open(path string) (*Store, error) {
 	}
 	db.SetMaxOpenConns(1) // SQLite: serialize writers, avoid "database is locked"
 	if _, err := db.Exec(schema); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("store: migrate: %w", err)
 	}
 	return &Store{db: db}, nil
@@ -227,7 +227,7 @@ func (s *Store) ListDeliveries(limit int) ([]Delivery, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store: list deliveries: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []Delivery
 	for rows.Next() {

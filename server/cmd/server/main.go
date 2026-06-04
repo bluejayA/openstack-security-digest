@@ -39,7 +39,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("open store: %v", err)
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 
 	fetcher := feed.NewFetcher(feedURL, cacheTTL)
 	notifier := slack.New()

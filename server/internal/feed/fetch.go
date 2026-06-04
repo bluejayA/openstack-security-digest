@@ -79,7 +79,7 @@ func (f *Fetcher) download(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("feed: fetch: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("feed: upstream status %d", resp.StatusCode)

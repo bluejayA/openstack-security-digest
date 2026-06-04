@@ -156,7 +156,7 @@ func (n *Notifier) Send(ctx context.Context, webhookURL string, msg Message) err
 	if err != nil {
 		return fmt.Errorf("slack: post: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
