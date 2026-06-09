@@ -99,7 +99,7 @@ jobs:
         # v8 of the action drives golangci-lint v2 (the v2 binary uses the new
         # config schema; the issue's @v6 reference predates v2). It manages its
         # own result cache, so no separate Go build cache step is needed.
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
           working-directory: server
